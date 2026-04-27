@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cycles within Cycles — Composite Wave</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f4f0;
+    --bg3: #eeede8;
+    --text: #1a1a18;
+    --text2: #5f5e5a;
+    --border: rgba(0,0,0,0.12);
+    --radius: 8px;
+    --coral: #F0997B;
+    --red: #E24B4A;
+    --blue: #378ADD;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18;
+      --bg2: #242422;
+      --bg3: #2e2e2b;
+      --text: #f0ede6;
+      --text2: #888780;
+      --border: rgba(255,255,255,0.12);
+    }
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 2rem 1.5rem;
+    max-width: 860px;
+    margin: 0 auto;
+    line-height: 1.6;
+  }
+
+  h1 { font-size: 20px; font-weight: 500; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: var(--text2); margin-bottom: 1.5rem; }
+
+  .controls-top {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+
+  .tab-btn {
+    font-size: 12px;
+    padding: 5px 14px;
+    border: 0.5px solid var(--border);
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--text2);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .tab-btn:hover { background: var(--bg2); }
+  .tab-btn.active {
+    background: var(--bg3);
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .thresh-wrap {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .thresh-wrap input[type=range] { width: 90px; accent-color: var(--coral); }
+  .thresh-wrap span { font-weight: 500; color: var(--text); min-width: 32px; }
+
+  .chart-wrap {
+    position: relative;
+    width: 100%;
+    height: 380px;
+    margin-bottom: 10px;
+  }
+
+  .legend {
+    display: flex;
+    gap: 6px 18px;
+    flex-wrap: wrap;
+    margin: 10px 0 20px;
+    font-size: 12px;
+    color: var(--text2);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .leg-line { width: 22px; height: 2.5px; border-radius: 1px; flex-shrink: 0; }
+  .leg-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+
+  .sliders-section {
+    border-top: 0.5px solid var(--border);
+    padding-top: 14px;
+  }
+  .sliders-label {
+    font-size: 12px;
+    color: var(--text2);
+    margin-bottom: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .slider-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px 24px;
+  }
+  @media (max-width: 540px) { .slider-grid { grid-template-columns: 1fr; } }
+
+  .sr {
+    display: grid;
+    grid-template-columns: 140px 1fr 34px;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+  }
+  .sr label {
+    font-size: 12px;
+    color: var(--text2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sr input[type=range] { accent-color: var(--coral); }
+  .sr .val {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    text-align: right;
+  }
+
+  footer {
+    margin-top: 2.5rem;
+    font-size: 11px;
+    color: var(--text2);
+    border-top: 0.5px solid var(--border);
+    padding-top: 12px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Cycles within cycles — composite wave</h1>
+<p class="subtitle">Superposition of Earth-system sine waves. Adjust amplitudes to reshape the wave; red = constructive peak, blue = destructive trough.</p>
+
+<div class="controls-top">
+  <button class="tab-btn active" id="tab-earth" onclick="switchTab('earth')">Earth-system (9 cycles)</button>
+  <button class="tab-btn" id="tab-all" onclick="switchTab('all')">All 13 cycles</button>
+  <div class="thresh-wrap">
+    <label for="thresh-sl">Threshold</label>
+    <input type="range" id="thresh-sl" min="50" max="95" step="5" value="75" oninput="onThresh(this.value)">
+    <span id="thresh-val">75%</span>
+  </div>
+</div>
+
+<div class="chart-wrap">
+  <canvas id="wc" role="img" aria-label="Composite sum wave of Earth-system cycles on a logarithmic time axis, with red dots at constructive peaks and blue dots at destructive troughs.">Composite interference wave of nested Earth cycles.</canvas>
+</div>
+
+<div class="legend">
+  <div class="legend-item"><div class="leg-line" style="background:#F0997B;"></div>Composite wave</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#E24B4A;"></div>Constructive peak</div>
+  <div class="legend-item"><div class="leg-dot" style="background:#378ADD;"></div>Destructive trough</div>
+</div>
+
+<div class="sliders-section">
+  <div class="sliders-label">Amplitude sliders</div>
+  <div class="slider-grid" id="sliders"></div>
+</div>
+
+<footer>
+  Cycles span from Earth day (86,400 s) to 26,000-year precession in the Earth-system view,
+  and 1 Hz to 225-million-year galactic rotation in the full view.
+  Time axis is logarithmic. Interference markers appear at peaks/troughs exceeding the set threshold % of the maximum composite amplitude.
+  Built with Chart.js 4.4.1.
+</footer>
+
+<script>
+const ALL_CYCLES = [
+  {label:"1 Hz",                period_s:1,                      color:"#E24B4A", group:"all"},
+  {label:"Tidal (~12 h)",       period_s:12.4*3600,              color:"#D85A30", group:"all"},
+  {label:"Earth day",           period_s:86400,                  color:"#BA7517", group:"earth"},
+  {label:"Lunar month",         period_s:29.53*86400,            color:"#639922", group:"earth"},
+  {label:"Season (3 mo)",       period_s:91.25*86400,            color:"#1D9E75", group:"earth"},
+  {label:"Earth year",          period_s:365.25*86400,           color:"#378ADD", group:"earth"},
+  {label:"Solar (11 yr)",       period_s:11*365.25*86400,        color:"#7F77DD", group:"earth"},
+  {label:"Volcanic (100 yr)",   period_s:100*365.25*86400,       color:"#D4537E", group:"earth"},
+  {label:"Magma (1,500 yr)",    period_s:1500*365.25*86400,      color:"#888780", group:"earth"},
+  {label:"Bray (2,400 yr)",     period_s:2400*365.25*86400,      color:"#EF9F27", group:"earth"},
+  {label:"Precession (26k yr)", period_s:26000*365.25*86400,     color:"#5DCAA5", group:"all"},
+  {label:"Milankovitch (100k yr)",period_s:1e5*365.25*86400,     color:"#AFA9EC", group:"all"},
+  {label:"Galactic (225M yr)",  period_s:225e6*365.25*86400,     color:"#F09595", group:"all"},
+];
+
+const amps = ALL_CYCLES.map(() => 1.0);
+let currentTab = "earth";
+let threshPct = 75;
+let chartInst = null;
+const N = 700;
+
+function getVisible() {
+  return ALL_CYCLES.map((c,i) => ({...c, idx:i}))
+    .filter(c => currentTab === "all" || c.group === "earth");
+}
+
+function buildXVals(visible) {
+  const periods = visible.map(c => c.period_s);
+  const logMin = Math.log10(Math.min(...periods) * 0.08);
+  const logMax = Math.log10(Math.max(...periods) * 2.8);
+  return Array.from({length:N}, (_,i) => Math.pow(10, logMin + (logMax-logMin)*i/(N-1)));
+}
+
+function computeComposite(visible, xVals) {
+  return xVals.map(t =>
+    visible.reduce((s,c) => s + amps[c.idx] * Math.sin(2*Math.PI*t / c.period_s), 0)
+  );
+}
+
+function findPeaks(composite, xVals, threshold) {
+  const mx = Math.max(...composite.map(Math.abs));
+  const cut = threshold * mx;
+  const constructive = [], destructive = [];
+  for (let i = 1; i < composite.length-1; i++) {
+    const v = composite[i], p = composite[i-1], n = composite[i+1];
+    if (Math.abs(v) >= cut) {
+      if (v > 0 && v >= p && v >= n) constructive.push({x: xVals[i], y: v});
+      if (v < 0 && v <= p && v <= n) destructive.push({x: xVals[i], y: v});
+    }
+  }
+  return {constructive, destructive, mx};
+}
+
+function buildTickMap(visible) {
+  const m = {};
+  visible.forEach(c => {
+    const lbl = c.label.replace(/ \(.*\)/,'').replace('~','');
+    m[c.period_s] = lbl;
+  });
+  return m;
+}
+
+function buildChart() {
+  const visible = getVisible();
+  const xVals = buildXVals(visible);
+  const composite = computeComposite(visible, xVals);
+  const {constructive, destructive, mx: compMax} = findPeaks(composite, xVals, threshPct/100);
+  const tickMap = buildTickMap(visible);
+  const yMax = compMax * 1.15;
+
+  const compDataset = {
+    label: 'Composite',
+    data: xVals.map((x,i) => ({x, y: composite[i]})),
+    borderColor: '#F0997B',
+    backgroundColor: 'rgba(240,153,123,0.08)',
+    fill: true,
+    borderWidth: 2.2,
+    pointRadius: 0,
+    tension: 0.25,
+    order: 2,
+  };
+
+  const constrDataset = {
+    label: 'Constructive', type: 'scatter',
+    data: constructive.map(p => ({x: p.x, y: p.y})),
+    borderColor: '#E24B4A', backgroundColor: '#E24B4A',
+    pointRadius: 6, pointStyle: 'circle', order: 1, showLine: false,
+  };
+
+  const destrDataset = {
+    label: 'Destructive', type: 'scatter',
+    data: destructive.map(p => ({x: p.x, y: p.y})),
+    borderColor: '#378ADD', backgroundColor: '#378ADD',
+    pointRadius: 6, pointStyle: 'circle', order: 1, showLine: false,
+  };
+
+  if (chartInst) chartInst.destroy();
+
+  chartInst = new Chart(document.getElementById('wc'), {
+    type: 'line',
+    data: {datasets: [compDataset, constrDataset, destrDataset]},
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          filter: item => item.dataset.label === 'Constructive' || item.dataset.label === 'Destructive',
+          callbacks: {
+            label: item => `${item.dataset.label}: ${item.parsed.y.toFixed(2)} (${(Math.abs(item.parsed.y)/compMax*100).toFixed(0)}% of max)`
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'logarithmic',
+          title: {display: true, text: 'Time (log scale)', font: {size: 11}, color: '#888780'},
+          ticks: {
+            color: '#888780', font: {size: 9}, maxTicksLimit: 14,
+            callback: function(v) {
+              const keys = Object.keys(tickMap).map(Number);
+              const cl = keys.reduce((a,b) => Math.abs(b-v) < Math.abs(a-v) ? b : a);
+              return Math.abs(cl-v)/v < 0.35 ? tickMap[cl] : '';
+            }
+          },
+          grid: {color: 'rgba(128,128,120,0.1)'}
+        },
+        y: {
+          min: -yMax, max: yMax,
+          title: {display: true, text: 'Composite amplitude', font: {size: 11}, color: '#888780'},
+          ticks: {color: '#888780', font: {size: 9}, maxTicksLimit: 7, callback: v => v.toFixed(1)},
+          grid: {color: 'rgba(128,128,120,0.1)'},
+          afterDataLimits(scale) { scale.max = yMax; scale.min = -yMax; }
+        }
+      },
+      parsing: {xAxisKey: 'x', yAxisKey: 'y'}
+    }
+  });
+}
+
+function buildSliders() {
+  const cont = document.getElementById('sliders');
+  cont.innerHTML = '';
+  ALL_CYCLES.forEach((c,i) => {
+    const row = document.createElement('div');
+    row.className = 'sr';
+    row.id = `row-${i}`;
+    row.style.display = (currentTab === 'all' || c.group === 'earth') ? 'grid' : 'none';
+    const vid = `av-${i}`;
+    row.innerHTML = `<label title="${c.label}">${c.label}</label>
+      <input type="range" min="0" max="2" step="0.05" value="1" oninput="onSlide(${i},this.value,'${vid}')">
+      <span class="val" id="${vid}">1.0</span>`;
+    cont.appendChild(row);
+  });
+}
+
+function onSlide(i, v, vid) {
+  amps[i] = parseFloat(v);
+  document.getElementById(vid).textContent = parseFloat(v).toFixed(1);
+  buildChart();
+}
+
+function onThresh(v) {
+  threshPct = parseInt(v);
+  document.getElementById('thresh-val').textContent = v + '%';
+  buildChart();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-all').classList.toggle('active', tab === 'all');
+  document.getElementById('tab-earth').classList.toggle('active', tab === 'earth');
+  ALL_CYCLES.forEach((_,i) => {
+    const row = document.getElementById(`row-${i}`);
+    if (row) row.style.display = (tab === 'all' || ALL_CYCLES[i].group === 'earth') ? 'grid' : 'none';
+  });
+  buildChart();
+}
+
+buildSliders();
+buildChart();
+</script>
+</body>
+</html>
