@@ -1,6 +1,10 @@
 # SCIENCE
 any cool science stuff!
+
 These diagrams represent the Earth, Lunar, Solar and Cosmic cycles within cycles within cycles within cycles, where each cycle occurs at a particular, different frequency. 
+
 The cycle frequencies are one Hertz, the tidal cycle (2 highs and 2 lows per 24 hours), one Earth day, one lunar month, the 4 Earth seasons (3-monthly cycle), one Earth year, 11 years (Solar cycle) 100 years (volcanic flare-up cycle), 1,500 years (Earth's crust-mantle magma cycle), 2,400 years (Bray cycle), 26,000 years (Sun-Sirius pair revolution cycle about Alcyone), 100,000 years (Milankovitch cycle), 225 million year cycle (one galactic rotation/cosmic year).
+
 Notice that the composite wave's amplitude range (shown on the y-axis) is far larger than any individual wave — that's the power of constructive interference, and physically it's why rare alignments of solar, volcanic, and orbital cycles can produce catastrophic climate events out of all proportion to any single driver.
+
 Use the sliders to reduce the Bray and Solar cycles to near zero and watch how many of the extreme peaks simply vanish, suggesting those two are doing a lot of the constructive work in this particular superposition.
