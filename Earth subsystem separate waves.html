@@ -1,0 +1,181 @@
+
+<h2 class="sr-only" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);">Interactive superposition of 13 nested cycles from 1 Hz to 225 million years, with amplitude sliders for each cycle.</h2>
+
+<style>
+.slider-row{display:grid;grid-template-columns:140px 1fr 36px;align-items:center;gap:8px;margin-bottom:6px;}
+.slider-row label{font-size:11px;color:var(--color-text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.slider-row span{font-size:11px;font-weight:500;color:var(--color-text-primary);text-align:right;}
+.tab-btn{font-size:12px;padding:4px 12px;border:0.5px solid var(--color-border-secondary);border-radius:var(--border-radius-md);background:transparent;color:var(--color-text-secondary);cursor:pointer;transition:background 0.15s;}
+.tab-btn.active{background:var(--color-background-secondary);color:var(--color-text-primary);font-weight:500;}
+</style>
+
+<div style="display:flex;gap:8px;margin-bottom:12px;">
+  <button class="tab-btn active" id="tab-all" onclick="switchTab('all')">All 13 cycles</button>
+  <button class="tab-btn" id="tab-earth" onclick="switchTab('earth')">Earth-system subset</button>
+</div>
+
+<div style="position:relative;width:100%;height:340px;">
+  <canvas id="waveChart" role="img" aria-label="Superimposed sine wave diagram of nested cycles on a logarithmic time axis, amplitudes adjustable via sliders.">Superposition of nested cycles shown as sine waves.</canvas>
+</div>
+
+<div id="legend" style="display:flex;flex-wrap:wrap;gap:6px 14px;margin:10px 0 14px;font-size:11px;color:var(--color-text-secondary);"></div>
+
+<div style="border-top:0.5px solid var(--color-border-tertiary);padding-top:12px;">
+  <p style="font-size:11px;color:var(--color-text-secondary);margin:0 0 10px;">Amplitude sliders</p>
+  <div id="sliders"></div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const ALL = [
+  {label:"1 Hz",          period_s:1,                       color:"#E24B4A", group:"all"},
+  {label:"Tidal (~12 h)", period_s:12.4*3600,               color:"#D85A30", group:"all"},
+  {label:"Earth day",     period_s:86400,                   color:"#BA7517", group:"earth"},
+  {label:"Lunar month",   period_s:29.53*86400,             color:"#639922", group:"earth"},
+  {label:"Season (3 mo)", period_s:91.25*86400,             color:"#1D9E75", group:"earth"},
+  {label:"Earth year",    period_s:365.25*86400,            color:"#378ADD", group:"earth"},
+  {label:"Solar (11 yr)", period_s:11*365.25*86400,         color:"#7F77DD", group:"earth"},
+  {label:"Volcanic (100 yr)",period_s:100*365.25*86400,     color:"#D4537E", group:"earth"},
+  {label:"Magma (1,500 yr)",period_s:1500*365.25*86400,     color:"#888780", group:"earth"},
+  {label:"Bray (2,400 yr)",period_s:2400*365.25*86400,      color:"#EF9F27", group:"earth"},
+  {label:"Precession (26k yr)",period_s:26000*365.25*86400, color:"#5DCAA5", group:"all"},
+  {label:"Milankovitch (100k yr)",period_s:1e5*365.25*86400,color:"#AFA9EC", group:"all"},
+  {label:"Galactic (225M yr)",period_s:225e6*365.25*86400,  color:"#F09595", group:"all"},
+];
+
+const amps = ALL.map(() => 1.0);
+let currentTab = "all";
+let chartInst = null;
+const N = 600;
+
+function getVisible() {
+  return ALL.map((c,i) => ({...c, idx:i})).filter(c => currentTab==="all" || c.group==="earth");
+}
+
+function buildXVals(visible) {
+  const periods = visible.map(c=>c.period_s);
+  const minP = Math.min(...periods);
+  const maxP = Math.max(...periods);
+  const logMin = Math.log10(minP * 0.1);
+  const logMax = Math.log10(maxP * 2.5);
+  return Array.from({length:N},(_,i)=>Math.pow(10, logMin+(logMax-logMin)*i/(N-1)));
+}
+
+function makeDatasets(visible, xVals) {
+  return visible.map(c => ({
+    label: c.label,
+    data: xVals.map(t => amps[c.idx] * Math.sin(2*Math.PI*t/c.period_s)),
+    borderColor: c.color,
+    backgroundColor: 'transparent',
+    borderWidth: 1.3,
+    pointRadius: 0,
+    tension: 0.2,
+    borderDash: [],
+  }));
+}
+
+function buildTickMap(visible) {
+  const m = {};
+  visible.forEach(c => {
+    const v = c.period_s;
+    const lbl = c.label.replace(/ \(.*\)/,'').replace('~','');
+    m[v] = lbl;
+  });
+  return m;
+}
+
+function buildChart() {
+  const visible = getVisible();
+  const xVals = buildXVals(visible);
+  const tickMap = buildTickMap(visible);
+
+  if (chartInst) { chartInst.destroy(); }
+
+  chartInst = new Chart(document.getElementById('waveChart'), {
+    type:'line',
+    data:{ labels: xVals, datasets: makeDatasets(visible, xVals) },
+    options:{
+      responsive:true, maintainAspectRatio:false, animation:false,
+      plugins:{ legend:{display:false}, tooltip:{enabled:false} },
+      scales:{
+        x:{
+          type:'logarithmic',
+          title:{display:true,text:'Time (log scale)',font:{size:11},color:'#888780'},
+          ticks:{
+            color:'#888780', font:{size:9}, maxTicksLimit:12,
+            callback: function(v) {
+              const keys = Object.keys(tickMap).map(Number);
+              const closest = keys.reduce((a,b)=>Math.abs(b-v)<Math.abs(a-v)?b:a);
+              return Math.abs(closest-v)/v < 0.4 ? tickMap[closest] : '';
+            }
+          },
+          grid:{color:'rgba(128,128,120,0.1)'}
+        },
+        y:{
+          min:-1.2, max:1.2,
+          title:{display:true,text:'Amplitude',font:{size:11},color:'#888780'},
+          ticks:{color:'#888780',font:{size:9},maxTicksLimit:5},
+          grid:{color:'rgba(128,128,120,0.1)'}
+        }
+      }
+    }
+  });
+  buildLegend(visible);
+}
+
+function updateChart() {
+  if (!chartInst) return;
+  const visible = getVisible();
+  const xVals = buildXVals(visible);
+  chartInst.data.labels = xVals;
+  chartInst.data.datasets = makeDatasets(visible, xVals);
+  chartInst.update('none');
+}
+
+function buildLegend(visible) {
+  const leg = document.getElementById('legend');
+  leg.innerHTML = '';
+  visible.forEach(c => {
+    const s = document.createElement('span');
+    s.style.cssText='display:flex;align-items:center;gap:5px;';
+    s.innerHTML=`<span style="display:inline-block;width:18px;height:2px;background:${c.color};border-radius:1px;flex-shrink:0;"></span>${c.label}`;
+    leg.appendChild(s);
+  });
+}
+
+function buildSliders() {
+  const cont = document.getElementById('sliders');
+  cont.innerHTML = '';
+  ALL.forEach((c,i) => {
+    const row = document.createElement('div');
+    row.className = 'slider-row';
+    row.id = `row-${i}`;
+    row.style.display = (currentTab==='all' || c.group==='earth') ? 'grid' : 'none';
+    const valId = `amp-val-${i}`;
+    row.innerHTML = `<label title="${c.label}">${c.label}</label>
+      <input type="range" min="0" max="2" step="0.05" value="1" oninput="onSlide(${i},this.value,'${valId}')">
+      <span id="${valId}">1.0</span>`;
+    cont.appendChild(row);
+  });
+}
+
+function onSlide(i, v, valId) {
+  amps[i] = parseFloat(v);
+  document.getElementById(valId).textContent = parseFloat(v).toFixed(1);
+  updateChart();
+}
+
+function switchTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-all').classList.toggle('active', tab==='all');
+  document.getElementById('tab-earth').classList.toggle('active', tab==='earth');
+  ALL.forEach((_,i) => {
+    const row = document.getElementById(`row-${i}`);
+    if (row) row.style.display = (tab==='all' || ALL[i].group==='earth') ? 'grid' : 'none';
+  });
+  buildChart();
+}
+
+buildSliders();
+buildChart();
+</script>
